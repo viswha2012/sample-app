@@ -10,17 +10,26 @@ pipeline {
         checkout scm
       }
     }
+
+    // Use Docker image 'node:18' to run Install & Test in a container
     stage('Install & Test') {
       steps {
-        sh 'node --version || true'
-        sh 'npm ci'
-        sh 'npm test'
+        script {
+          // pulls node:18 and runs npm inside container using host docker (requires docker socket)
+          docker.image('node:18').inside {
+            sh 'node --version'
+            sh 'npm --version'
+            sh 'npm ci'
+            sh 'npm test'
+          }
+        }
       }
     }
+
     stage('Build Docker Image') {
       steps {
         script {
-          // Build image using host docker
+          // Build image on host Docker (Jenkins has /var/run/docker.sock mounted)
           sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
           sh "docker images | grep ${IMAGE_NAME} || true"
         }
@@ -28,11 +37,7 @@ pipeline {
     }
   }
   post {
-    success {
-      echo "Pipeline succeeded. Built ${IMAGE_NAME}:${IMAGE_TAG}"
-    }
-    failure {
-      echo "Pipeline failed."
-    }
+    success { echo "Built ${IMAGE_NAME}:${IMAGE_TAG}" }
+    failure { echo "Pipeline failed" }
   }
 }
